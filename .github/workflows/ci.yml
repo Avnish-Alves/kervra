@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    name: Repository CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check whether Flutter project is initialized
+        id: project
+        shell: bash
+        run: |
+          if [[ -f pubspec.yaml ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## ⚠️ Flutter application checks were NOT RUN"
+              echo
+              echo '`pubspec.yaml` is absent because the Flutter application has not yet been initialized.'
+              echo
+              echo "The following checks were not executed:"
+              echo "- Formatting"
+              echo "- Static analysis"
+              echo "- Automated tests"
+              echo
+              echo "A successful workflow in this state validates the repository workflow only, not the application."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=Flutter checks skipped::Flutter checks were not run because pubspec.yaml is absent; the Flutter application has not been initialized."
+          fi
+
+      - name: Set up stable Flutter
+        if: steps.project.outputs.present == 'true'
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        if: steps.project.outputs.present == 'true'
+        run: flutter pub get
+
+      - name: Check Dart formatting
+        if: steps.project.outputs.present == 'true'
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze Flutter project
+        if: steps.project.outputs.present == 'true'
+        run: flutter analyze
+
+      - name: Run Flutter tests
+        if: steps.project.outputs.present == 'true'
+        run: flutter test
